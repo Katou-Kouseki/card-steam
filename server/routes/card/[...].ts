@@ -1,43 +1,46 @@
-import { env } from 'node:process'
 import { getPlayerSummaries, getRecentlyPlayedGames, getSteamProfile } from 'server/core/request/steamApi'
-import { steamCard } from 'server/core/render/steamCard'
-import errorCard from 'server/core/render/errorCard'
-import { crawler, data, setting } from 'server/core/logic'
+import { crawler, data, parseUrlConfig } from 'server/core/logic'
 import initLocale from 'server/core/locales'
 import type { Count } from 'types'
 import { imageUrl2Base64, transparentImageBase64 } from 'server/core/utils'
+import { generateError } from '~/server/core/render/template/error'
 import { getGameCoverUrl } from '@/utils/common'
+import { generateSvg } from '~/server/core/render/template/svg'
 
 const i18n = initLocale('zhCN')
-const key: string = env.STEAM_KEY || ''
-const cacheTime: string = env.CACHE_TIME || '3600'
-const blockUsers: string = env.BLOCK_USERS || ''
 const JPEG_PREFIX = 'data:image/jpeg;base64,'
 const PNG_PREFIX = 'data:image/png;base64,'
 
 export default defineEventHandler(async (event) => {
   try {
+    const runtimeConfig = useRuntimeConfig(event)
+    const steamKey = runtimeConfig.steamKey
+    const cacheTime = runtimeConfig.cacheTime || '3600'
+    const blockUsers = runtimeConfig.blockUsers || ''
+    const blockApps = runtimeConfig.blockApps || ''
+
     setHeader(event, 'Content-Type', 'image/svg+xml')
     setHeader(event, 'Cache-Control', `public, max-age=${cacheTime}`)
     const { _ } = event.context.params as { _: string }
     const splitArr = _.split('/')
     const steamid = splitArr[0]
     const settings = splitArr[1]
-    const { setting: _setting } = setting(settings)
-    i18n.setLocale(_setting.lang as any)
-    const numberReg = /[A-Za-z]/
+    const numberReg = /[A-Z]/i
     if (steamid.match(numberReg) !== null)
-      return errorCard(i18n.get('invalid_steamid'), i18n.get('error-info'))
+      return generateError(i18n.get('invalid_steamid'), i18n.get('error-info'))
 
     if (blockUsers.split(',').includes(steamid))
-      return errorCard('Sorry, your account had been banned.', i18n.get('error-info'))
+      return generateError('Sorry, your account had been banned.', i18n.get('error-info'))
+
+    const { config } = parseUrlConfig(settings)
+    i18n.setLocale(config.lang)
 
     const AllData = await Promise.all([
-      getPlayerSummaries({ key, steamids: steamid }),
+      getPlayerSummaries({ key: steamKey, steamids: steamid }),
       getRecentlyPlayedGames({
         format: 'json',
         steamid,
-        key,
+        key: steamKey,
         count: 0,
       }),
       getSteamProfile(steamid),
@@ -58,7 +61,7 @@ export default defineEventHandler(async (event) => {
       avatarUrl,
     } = crawler(profile)
 
-    const { games, playTime, name, isOnline } = data(player.response.players[0], playedGames.response)
+    const { games, playTime, name, isOnline } = data(player.response.players[0], playedGames.response, blockApps)
     let badgeIcon = ''
     if (badgeIconUrl) {
       badgeIcon = await imageUrl2Base64(badgeIconUrl)
@@ -83,7 +86,7 @@ export default defineEventHandler(async (event) => {
 
     const counts: Count[] = []
 
-    _setting.statistics.forEach((item: any) => {
+    config.statistics.forEach((item: any) => {
       switch (item) {
         case 'games':
           counts.push({
@@ -130,11 +133,13 @@ export default defineEventHandler(async (event) => {
       }
     })
 
-    if (_setting.bg.includes('bg-game')) {
-      const arrs = _setting.bg.split('-')
+    if (config.bg.includes('bg-game')) {
+      const arrs = config.bg.split('-')
       let url = ''
       if (arrs.length < 3) {
-        const { appid } = await $fetch(`/info/games/${steamid}`)
+        const { appid } = await $fetch<{
+          appid: number
+        }>(`/info/games/${steamid}`)
         url = getGameCoverUrl(appid!)
       }
       else {
@@ -142,30 +147,29 @@ export default defineEventHandler(async (event) => {
       }
       let gameBase64 = await imageUrl2Base64(url)
       gameBase64 = JPEG_PREFIX + gameBase64
-      _setting.bg = `game-${gameBase64}`
+      config.bg = `game-${gameBase64}`
     }
 
-    return steamCard(
+    return generateSvg({
       name,
       avatarUrlBase64,
       playerLevel,
       isOnline,
       gameImgs,
-      _setting.theme,
-      _setting.badge,
-      _setting.group,
-      _setting.bg,
-      _setting.textColor,
+      theme: config.theme,
+      badge: config.badge,
+      group: config.group,
+      bg: config.bg,
+      textColor: config.textColor,
       playTime,
       groupIconList,
       badgeIcon,
       i18n,
       counts,
-    )
+    })
   }
   catch (error) {
-    // eslint-disable-next-line no-console
-    console.log('🚀 ~ file: [...].ts:148 ~ defineEventHandler ~ error:', error)
-    return errorCard(String(error), 'error')
+    console.error('[Steam Card] generate error:', error)
+    return generateError(String(error), 'error')
   }
 })

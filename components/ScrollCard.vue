@@ -1,5 +1,6 @@
 <script setup lang="ts">
-const ORIGIN = __ORIGIN__ || window.location.origin
+const appConfig = useAppConfig()
+const ORIGIN = appConfig.origin || window.location.origin
 </script>
 
 <template>
@@ -10,7 +11,7 @@ const ORIGIN = __ORIGIN__ || window.location.origin
         clone
         pause-on-hover
       >
-        <NuxtImg v-for="i in 4" :key="i" class="sm:h-[150px] sm:w-[400px] w-[311px] h-[117px] mr-5" :src="`${ORIGIN}/example/${i}.svg`" />
+        <img v-for="i in 4" :key="i" class="sm:h-[150px] sm:w-[400px] w-[311px] h-[117px] mr-5" :src="`${ORIGIN}/example/${i}.svg`">
       </Vue3Marquee>
     </div>
   </div>

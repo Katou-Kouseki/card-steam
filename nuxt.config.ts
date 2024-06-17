@@ -8,10 +8,10 @@ export default defineNuxtConfig({
     '@nuxt/ui',
     '@nuxt/devtools',
     '@nuxtjs/i18n',
-    '@nuxt/image',
     '@pinia/nuxt',
     '@pinia-plugin-persistedstate/nuxt',
-    'vite-plugin-turbo-console/nuxt',
+    'unplugin-turbo-console/nuxt',
+    '@nuxt/test-utils/module',
   ],
   i18n: {
     langDir: 'locales',
@@ -57,5 +57,14 @@ export default defineNuxtConfig({
     define: {
       __ORIGIN__: JSON.stringify(env.ORIGIN || ''),
     },
+  },
+  appConfig: {
+    origin: env.ORIGIN || '',
+  },
+  runtimeConfig: {
+    blockApps: '',
+    blockUsers: '',
+    steamKey: '',
+    cacheTime: '',
   },
 })

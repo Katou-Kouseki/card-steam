@@ -1,9 +1,7 @@
 <script setup lang="ts">
-const { accounts } = useAccount()
-
-const router = useRouter()
-if (accounts.length > 0)
-  router.replace('/')
+definePageMeta({
+  middleware: 'auth',
+})
 </script>
 
 <template>
@@ -14,7 +12,7 @@ if (accounts.length > 0)
     </p>
     <AddAccount
       @callback="() => {
-        router.replace('/')
+        $router.replace('/')
       }"
     />
     <ScrollCard />
